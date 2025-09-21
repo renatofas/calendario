@@ -2,27 +2,66 @@ import React, { useMemo, useState, useEffect } from "react";
 import DayCell from "./DayCell";
 import Modal from "./Modal";
 
-// Helpers de storage
-function loadEvents(key) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
-}
-function saveEvents(key, data) {
-  localStorage.setItem(key, JSON.stringify(data));
-}
-
 export default function Calendar({ year, month, storageKey }) {
-  const [events, setEvents] = useState(() => loadEvents(storageKey)); // { "YYYY-MM-DD": [{id,title,desc}] }
-  const [editing, setEditing] = useState(null); // { date: "YYYY-MM-DD", item?: {...} }
+  // Cargamos del JSON público una sola vez
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // { date, item? }
+  const [events, setEvents] = useState({});     // copia editable en memoria
 
-  useEffect(() => { saveEvents(storageKey, events); }, [events, storageKey]);
+  useEffect(() => {
+    async function load() {
+  try {
+    const res = await fetch("/calendar.json", { cache: "no-store" });
+    const data = await res.json();
+    setEvents(data || {}); // todos ven esto igual
+  } catch (e) {
+    console.error("No se pudo cargar calendar.json", e);
+    setEvents({});
+  } finally {
+    setLoading(false);
+  }
+}
+
+    load();
+  }, []);
+
+  // --- Si quieres permitir edición local (no global) quita estos handlers ---
+  function addOrEdit(dateStr, payload, existingId) {
+    setEvents(prev => {
+      const list = prev[dateStr] ? [...prev[dateStr]] : [];
+      if (existingId) {
+        const idx = list.findIndex(x => x.id === existingId);
+        if (idx !== -1) list[idx] = { ...list[idx], ...payload };
+      } else {
+        list.push({ id: cryptoRandom(), ...payload });
+      }
+      return { ...prev, [dateStr]: list };
+    });
+  }
+  function removeItem(dateStr, id) {
+    setEvents(prev => {
+      const list = (prev[dateStr] || []).filter(x => x.id !== id);
+      const next = { ...prev };
+      if (list.length) next[dateStr] = list; else delete next[dateStr];
+      return next;
+    });
+  }
+  function cryptoRandom() { return Math.random().toString(36).slice(2, 9); }
+
+  // Exportar JSON para que lo subas tú al repo (manual, sin backend)
+  function exportJson() {
+    const blob = new Blob([JSON.stringify(events, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "calendar.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const firstDay = useMemo(() => new Date(year, month, 1), [year, month]);
   const daysInMonth = useMemo(() => new Date(year, month + 1, 0).getDate(), [year, month]);
-
-  const startWeekday = (firstDay.getDay() + 6) % 7; // Lunes=0 ... Domingo=6
+  const startWeekday = (firstDay.getDay() + 6) % 7;
   const totalCells = Math.ceil((startWeekday + daysInMonth) / 7) * 7;
 
   const cells = [];
@@ -37,35 +76,16 @@ export default function Calendar({ year, month, storageKey }) {
     cells.push({ key, dayNum: inMonth ? dayNum : null, inMonth });
   }
 
-  function addOrEdit(dateStr, payload, existingId) {
-    setEvents(prev => {
-      const list = prev[dateStr] ? [...prev[dateStr]] : [];
-      if (existingId) {
-        const idx = list.findIndex(x => x.id === existingId);
-        if (idx !== -1) list[idx] = { ...list[idx], ...payload };
-      } else {
-        list.push({ id: cryptoRandom(), ...payload });
-      }
-      return { ...prev, [dateStr]: list };
-    });
-  }
-
-  function removeItem(dateStr, id) {
-    setEvents(prev => {
-      const list = (prev[dateStr] || []).filter(x => x.id !== id);
-      const next = { ...prev };
-      if (list.length) next[dateStr] = list; else delete next[dateStr];
-      return next;
-    });
-  }
-
-  function cryptoRandom() {
-    // ID simple
-    return Math.random().toString(36).slice(2, 9);
-  }
+  if (loading) return <div style={{padding:16}}>Cargando calendario...</div>;
 
   return (
     <div className="calendar">
+      <div style={{display:"flex", justifyContent:"flex-end", marginBottom:10, gap:8}}>
+        <button className="btn" onClick={exportJson} title="Descarga el JSON y súbelo a /public para que todos lo vean">
+          Exportar JSON
+        </button>
+      </div>
+
       <div className="weekdays">
         {["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map(d => <div key={d}>{d}</div>)}
       </div>
@@ -103,27 +123,23 @@ export default function Calendar({ year, month, storageKey }) {
 }
 
 function EventForm({ date, initial, onSave, onCancel }) {
-  const [title, setTitle] = useState(initial?.title || "");
-  const [desc, setDesc] = useState(initial?.desc || "");
+  const [title, setTitle] = React.useState(initial?.title || "");
+  const [desc, setDesc] = React.useState(initial?.desc || "");
   return (
     <div className="modal-body">
       <h3>{initial ? "Editar" : "Agregar"} evento</h3>
       <p className="date-tag">{date}</p>
       <label className="field">
-        <span>Título (ej: Prueba de Matemática)</span>
-        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Historia - Trabajo grupal" />
+        <span>Título</span>
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Prueba de Física" />
       </label>
       <label className="field">
         <span>Detalle (opcional)</span>
-        <textarea rows="4" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Capítulos, rúbrica, materiales, etc." />
+        <textarea rows="4" value={desc} onChange={e => setDesc(e.target.value)} />
       </label>
       <div className="actions">
         <button className="btn" onClick={onCancel}>Cancelar</button>
-        <button
-          className="btn primary"
-          onClick={() => onSave({ title: title.trim(), desc: desc.trim() })}
-          disabled={!title.trim()}
-        >
+        <button className="btn primary" onClick={() => onSave({ title: title.trim(), desc: desc.trim() })} disabled={!title.trim()}>
           Guardar
         </button>
       </div>
