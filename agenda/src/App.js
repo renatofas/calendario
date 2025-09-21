@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import CalendarPage from "./pages/CalendarPage";
+import student from "./assets/student.png";
 
 export default function App() {
   const [route, setRoute] = useState("home"); // "home" | "calendar"
@@ -34,14 +35,8 @@ export default function App() {
       </div>
 
       <div className="hero-right">
-        {/* Ilustración representativa */}
-        <div className="card-illustration">
-          <div className="lamp"></div>
-          <div className="person"></div>
-          <div className="books"></div>
-          <div className="plant"></div>
-        </div>
-      </div>
+  <img className="hero-img" src={student} alt="Estudiante estudiando" />
+</div>
     </div>
   );
 }
