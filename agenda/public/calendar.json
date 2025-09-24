@@ -1,8 +1,23 @@
 {
   "2025-09-23": [
-    { "id": "a1", "title": "Prueba Matemática", "desc": "Cap. 3 y 4" }
+    {
+      "id": "a1",
+      "title": "Prueba Matemática",
+      "desc": "Cap. 3 y 4"
+    }
   ],
   "2025-09-25": [
-    { "id": "b1", "title": "Trabajo Historia", "desc": "Revolución Francesa" }
+    {
+      "id": "b1",
+      "title": "Trabajo Historia",
+      "desc": "Revolución Francesa"
+    }
+  ],
+  "2025-09-27": [
+    {
+      "id": "g2n7d0r",
+      "title": "filosofia",
+      "desc": "prueba"
+    }
   ]
 }
